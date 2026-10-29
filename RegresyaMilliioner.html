@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מי רוצה להיות מיליונר - רגרסיה 4 יח"ל</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Rubik', sans-serif;
+            background: radial-gradient(circle at center, #1b2046 0%, #060814 100%);
+            color: white;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        .game-bg {
+            background: radial-gradient(circle, #0e1233, #02030a);
+        }
+
+        /* סגנון כפתורי התשובות והשאלה */
+        .q-box {
+            background: linear-gradient(180deg, #091353, #050a2e);
+            border: 2px solid #b8860b;
+            box-shadow: 0 0 15px rgba(184, 134, 11, 0.3);
+            border-radius: 50px;
+            position: relative;
+        }
+
+        .q-box::before, .q-box::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 30px;
+            height: 2px;
+            background: #b8860b;
+        }
+        .q-box::before { right: -30px; }
+        .q-box::after { left: -30px; }
+
+        .ans-btn {
+            background: linear-gradient(180deg, #091353, #050a2e);
+            border: 2px solid #b8860b;
+            border-radius: 40px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .ans-btn::before, .ans-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 20px;
+            height: 2px;
+            background: #b8860b;
+        }
+        .ans-btn::before { right: -20px; }
+        .ans-btn::after { left: -20px; }
+
+        .ans-btn:hover:not(:disabled) {
+            background: linear-gradient(180deg, #162485, #0b1554);
+            box-shadow: 0 0 15px rgba(184, 134, 11, 0.8);
+        }
+
+        .ans-selected {
+            background: linear-gradient(180deg, #b8860b, #8b6508) !important;
+            border-color: #ffd700;
+            color: white;
+            animation: pulse-select 0.5s infinite alternate;
+        }
+
+        .ans-correct {
+            background: linear-gradient(180deg, #228b22, #006400) !important;
+            border-color: #32cd32;
+            animation: flash-correct 0.3s 3;
+        }
+
+        .ans-wrong {
+            background: linear-gradient(180deg, #b22222, #8b0000) !important;
+            border-color: #ff4500;
+        }
+
+        .ans-disabled {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @keyframes pulse-select {
+            from { box-shadow: 0 0 10px #ffd700; }
+            to { box-shadow: 0 0 25px #ffd700; }
+        }
+
+        @keyframes flash-correct {
+            0% { background: white; color: black; }
+            50% { background: linear-gradient(180deg, #228b22, #006400); color: white; }
+            100% { background: white; color: black; }
+        }
+
+        /* סולם הכסף */
+        .ladder-item {
+            padding: 4px 15px;
+            border-radius: 20px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .ladder-current {
+            background: #b8860b;
+            color: black;
+            font-weight: bold;
+            box-shadow: 0 0 10px #ffd700;
+        }
+        .ladder-safe { color: #ffd700; font-weight: bold; }
+        .ladder-passed { color: #888; }
+
+        /* גלגלי הצלה */
+        .lifeline {
+            background: radial-gradient(circle, #1a2a8a, #050a2e);
+            border: 2px solid #b8860b;
+            color: #b8860b;
+            transition: all 0.3s;
+        }
+        .lifeline:hover:not(:disabled) {
+            background: #b8860b;
+            color: black;
+            box-shadow: 0 0 15px #ffd700;
+        }
+        .lifeline:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            border-color: #555;
+            color: #555;
+        }
+
+        /* מודאלים (הודעות במקום Alert) */
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+        }
+        
+        .hide { display: none !important; }
+
+        /* כפתור פתיחה */
+        .start-btn {
+            background: linear-gradient(180deg, #b8860b, #8b6508);
+            border: 2px solid #ffd700;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+        .start-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.8);
+        }
+
+        /* Chart Bar for Audience */
+        .bar-container { height: 150px; display: flex; align-items: flex-end; justify-content: center; gap: 15px; margin-top: 20px; }
+        .bar { width: 40px; background: linear-gradient(to top, #1e3c72, #2a5298); border-radius: 5px 5px 0 0; text-align: center; color: white; display: flex; flex-direction: column; justify-content: flex-start; padding-top: 5px; font-weight: bold; font-size: 14px; position: relative; transition: height 1s ease-out; }
+        .bar-label { position: absolute; bottom: -25px; left: 0; right: 0; color: #b8860b; font-weight: bold; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center relative">
+
+    <!-- מסך פתיחה -->
+    <div id="start-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center game-bg">
+        <div class="text-center max-w-2xl px-6">
+            <h1 class="text-5xl md:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 mb-6 drop-shadow-lg">מי רוצה להיות מיליונר?</h1>
+            <h2 class="text-2xl md:text-4xl text-blue-300 mb-12 font-medium">מהדורת סטטיסטיקה - רגרסיה (4 יח"ל)</h2>
+            <button onclick="startGame()" class="start-btn text-2xl px-12 py-4 rounded-full font-bold text-white transition duration-300">
+                התחל משחק
+            </button>
+        </div>
+        <div class="absolute bottom-6 left-0 right-0 text-center text-blue-200 text-lg opacity-70 tracking-wide">
+            הוכן על ידי רגינה צ'ולסקי
+        </div>
+    </div>
+
+    <!-- מסך המשחק -->
+    <div id="game-screen" class="w-full max-w-6xl flex-1 flex flex-col md:flex-row hide relative p-4 gap-6">
+        
+        <!-- אזור מרכזי: שאלות ותשובות -->
+        <div class="flex-1 flex flex-col justify-end pb-8">
+            
+            <!-- אזור גלגלי הצלה במובייל או מעל השאלה -->
+            <div class="flex justify-center gap-4 mb-8">
+                <button id="btn-5050" onclick="useLifeline('5050')" class="lifeline w-16 h-12 md:w-20 md:h-14 rounded-full flex items-center justify-center font-bold text-xl md:text-2xl" title="50:50">
+                    50:50
+                </button>
+                <button id="btn-phone" onclick="useLifeline('phone')" class="lifeline w-16 h-12 md:w-20 md:h-14 rounded-full flex items-center justify-center font-bold text-xl" title="חבר טלפוני">
+                    📞
+                </button>
+                <button id="btn-audience" onclick="useLifeline('audience')" class="lifeline w-16 h-12 md:w-20 md:h-14 rounded-full flex items-center justify-center font-bold text-xl" title="עזרת קהל">
+                    👥
+                </button>
+            </div>
+
+            <!-- קופסת שאלה -->
+            <div class="q-box w-11/12 mx-auto text-center py-6 px-4 md:px-8 mb-6 md:mb-10 text-xl md:text-3xl font-medium leading-relaxed">
+                <span id="question-text">טוען שאלה...</span>
+            </div>
+
+            <!-- רשת תשובות -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-12 w-11/12 mx-auto">
+                <button id="ans-0" onclick="selectAnswer(0)" class="ans-btn py-4 px-6 text-right text-lg md:text-xl flex items-center">
+                    <span class="text-yellow-500 font-bold ml-3 text-xl w-6">א:</span> <span id="text-0" class="flex-1"></span>
+                </button>
+                <button id="ans-1" onclick="selectAnswer(1)" class="ans-btn py-4 px-6 text-right text-lg md:text-xl flex items-center">
+                    <span class="text-yellow-500 font-bold ml-3 text-xl w-6">ב:</span> <span id="text-1" class="flex-1"></span>
+                </button>
+                <button id="ans-2" onclick="selectAnswer(2)" class="ans-btn py-4 px-6 text-right text-lg md:text-xl flex items-center">
+                    <span class="text-yellow-500 font-bold ml-3 text-xl w-6">ג:</span> <span id="text-2" class="flex-1"></span>
+                </button>
+                <button id="ans-3" onclick="selectAnswer(3)" class="ans-btn py-4 px-6 text-right text-lg md:text-xl flex items-center">
+                    <span class="text-yellow-500 font-bold ml-3 text-xl w-6">ד:</span> <span id="text-3" class="flex-1"></span>
+                </button>
+            </div>
+        </div>
+
+        <!-- סולם הכסף (צד שמאל) -->
+        <div class="w-full md:w-64 bg-black bg-opacity-40 rounded-xl p-4 flex flex-col justify-between hidden md:flex">
+            <div id="money-ladder" class="flex flex-col-reverse gap-1 text-lg font-mono text-left" dir="ltr">
+                <!-- ייווצר דרך JS -->
+            </div>
+        </div>
+
+        <!-- תצוגת כסף מינימלית למובייל -->
+        <div class="md:hidden absolute top-4 left-4 right-4 flex justify-between items-center bg-black bg-opacity-60 rounded-full px-6 py-2 border border-yellow-600">
+            <span class="text-gray-300 text-sm">שאלה: <span id="mobile-q-num" class="text-white font-bold">1</span>/15</span>
+            <span class="text-yellow-400 font-bold text-lg" id="mobile-money" dir="ltr">₪0</span>
+        </div>
+    </div>
+
+    <!-- מודאל הודעות כללי -->
+    <div id="custom-modal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hide px-4">
+        <div class="bg-gradient-to-b from-blue-900 to-black border-2 border-yellow-500 rounded-2xl p-8 max-w-md w-full text-center shadow-[0_0_30px_rgba(255,215,0,0.3)]">
+            <h3 id="modal-title" class="text-3xl font-bold text-yellow-400 mb-4">כותרת</h3>
+            <div id="modal-content" class="text-xl text-white mb-8 min-h-[50px]">תוכן...</div>
+            <button onclick="closeModal()" id="modal-btn" class="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-2 px-8 rounded-full text-xl transition">המשך</button>
+        </div>
+    </div>
+
+    <!-- מודאל קהל -->
+    <div id="audience-modal" class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hide px-4">
+        <div class="bg-gradient-to-b from-blue-900 to-black border-2 border-yellow-500 rounded-2xl p-6 max-w-md w-full text-center">
+            <h3 class="text-2xl font-bold text-yellow-400 mb-2">תוצאות הצבעת הקהל</h3>
+            <div class="bar-container" id="audience-bars">
+                <div class="bar" id="bar-0" style="height: 0%;"><span class="bar-label">א</span></div>
+                <div class="bar" id="bar-1" style="height: 0%;"><span class="bar-label">ב</span></div>
+                <div class="bar" id="bar-2" style="height: 0%;"><span class="bar-label">ג</span></div>
+                <div class="bar" id="bar-3" style="height: 0%;"><span class="bar-label">ד</span></div>
+            </div>
+            <button onclick="closeAudienceModal()" class="mt-10 bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-2 px-8 rounded-full text-lg transition">סגור</button>
+        </div>
+    </div>
+
+    <script>
+        // --- נתוני המשחק ---
+        const moneyTree = [
+            "₪100", "₪200", "₪300", "₪500", "₪1,000",
+            "₪2,000", "₪4,000", "₪8,000", "₪16,000", "₪32,000",
+            "₪64,000", "₪125,000", "₪250,000", "₪500,000", "₪1,000,000"
+        ];
+
+        // מערך השאלות (מרמת קושי קלה לקשה)
+        const allQuestions = [
+            {
+                q: "מה מטרתה העיקרית של דיאגרמת פיזור?",
+                options: ["מציאת החציון של המדגם", "הצגת הקשר בין שני משתנים כמותיים", "חישוב הממוצע של כל משתנה", "הצגת שכיחויות של משתנה בודד"],
+                correct: 1
+            },
+            {
+                q: "איך נקרא הישר שמייצג בצורה הטובה ביותר את המגמה המרכזית בנתונים הדו-ממדיים?",
+                options: ["ישר הרגרסיה", "ישר הסימטריה", "הישר המקביל", "ישר פונקציונלי"],
+                correct: 0
+            },
+            {
+                q: "אילו ערכים יכול לקבל מקדם המתאם r?",
+                options: ["בין 0 ל- 1 בלבד", "בין 0 ל- 100", "כל מספר ממשי חיובי", "בין 1 ל- 1- כולל"],
+                correct: 3
+            },
+            {
+                q: "מה מציין מקדם המתאם של פירסון (r)?",
+                options: ["את הממוצע של שני המשתנים", "את עוצמת וכיוון הקשר הליניארי", "את נקודת החיתוך עם ציר y", "את סטיית התקן של המדגם"],
+                correct: 1
+            },
+            {
+                q: "אם הנקודות בדיאגרמת הפיזור יורדות משמאל לימין, מה נכון לגבי מקדם המתאם?",
+                options: ["הוא שווה לאפס", "הוא חיובי", "הוא שלילי", "אי אפשר לדעת"],
+                correct: 2
+            },
+            {
+                q: "מהי המשמעות של מצב בו r = 1?",
+                options: ["חוסר קשר לחלוטין בין המשתנים", "נתונים מפוזרים באופן אקראי", "קשר ליניארי חיובי מושלם", "קשר ליניארי שלילי מושלם"],
+                correct: 2
+            },
+            {
+                q: "מהו תפקידו של המשתנה x במשוואת ישר הרגרסיה לניבוי y?",
+                options: ["המשתנה המסביר (הבלתי תלוי)", "המשתנה המוסבר (התלוי)", "מקדם המתאם", "משתנה ההפרעה"],
+                correct: 0
+            },
+            {
+                q: "נתונה משוואת ישר הרגרסיה: y = 2.5x + 4. אם x גדל ב-1, מה קורה ל-y?",
+                options: ["גדל ב-4", "קטן ב-2.5", "נשאר ללא שינוי", "גדל ב-2.5"],
+                correct: 3
+            },
+            {
+                q: "כיצד נקרא שימוש בישר הרגרסיה כדי לנבא ערך מחוץ לטווח הנתונים המקורי של המדגם?",
+                options: ["אינטרפולציה", "אקסטרפולציה (חיוץ)", "רגרסיה הפוכה", "סטיית תקן מורחבת"],
+                correct: 1
+            },
+            {
+                q: "איזו מבין הנקודות הבאות **תמיד** נמצאת על ישר הרגרסיה של y לפי x?",
+                options: ["ראשית הצירים (0,0)", "נקודת המקסימום", "נקודת הממוצעים: (ממוצע x, ממוצע y)", "הנקודה בה x=1 ו- y=r"],
+                correct: 2
+            },
+            {
+                q: "אם נחליף בין המשתנה המסביר למשתנה המוסבר, מה יקרה למקדם המתאם (r)?",
+                options: ["ישנה את סימנו (פלוס למינוס)", "יהפוך תמיד לאפס", "יגדל פי 2", "יישאר ללא כל שינוי"],
+                correct: 3
+            },
+            {
+                q: "אם מקדם המתאם שווה לאפס, מה ניתן להסיק בוודאות לגבי המשתנים?",
+                options: ["הם תמיד שווים זה לזה", "אין ביניהם קשר ליניארי כלל", "יש ביניהם קשר שלילי חזק", "יש ביניהם קשר חיובי חלש"],
+                correct: 1
+            },
+            {
+                q: "האם ישר הרגרסיה לניבוי y לפי x בהכרח זהה לישר הרגרסיה לניבוי x לפי y?",
+                options: ["כן, תמיד מדובר באותו ישר במישור", "לא, לרוב אלו ישרים שונים (פרט למקרה של קשר מושלם)", "תלוי אך ורק בנקודת החיתוך", "כן, אבל רק אם הממוצעים שווים לאפס"],
+                correct: 1
+            },
+            {
+                q: "במשוואת ישר הרגרסיה y = ax + b, כיצד מחושב הפרמטר b (נקודת החיתוך)?",
+                options: ["ממוצע y פחות (a כפול ממוצע x)", "ממוצע x פחות (a כפול ממוצע y)", "חיבור הממוצעים של שני המשתנים", "חילוק סטיית התקן של y בזו של x"],
+                correct: 0
+            },
+            {
+                q: "מהו היחס ההכרחי בין שיפוע ישר הרגרסיה (a) למקדם המתאם (r)?",
+                options: ["הם שווים בערכם המוחלט", "מכפלתם תמיד שווה 1", "שניהם בעלי אותו סימן (שניהם חיוביים או שניהם שליליים)", "אין ביניהם שום קשר מתמטי"],
+                correct: 2
+            }
+        ];
+
+        // --- משתני מצב ---
+        let currentLevel = 0;
+        let isAcceptingInput = false;
+        let lifelines = { '5050': true, 'phone': true, 'audience': true };
+        let currentSafeHaven = 0; 
+        let modalCallback = null;
+
+        // --- אודיו (Tone.js) ---
+        let synth;
+        
+        async function initAudio() {
+            if (!synth) {
+                await Tone.start(); // Ensure audio context is started
+                synth = new Tone.Synth({
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.05, decay: 0.1, sustain: 0.3, release: 1 }
+                }).toDestination();
+                synth.volume.value = -10;
+            }
+        }
+
+        function playSound(type) {
+            if (!synth) return;
+            const now = Tone.now();
+            if (type === 'select') {
+                synth.triggerAttackRelease("G4", "8n");
+            } else if (type === 'correct') {
+                synth.triggerAttackRelease("C5", "8n", now);
+                synth.triggerAttackRelease("E5", "8n", now + 0.15);
+                synth.triggerAttackRelease("G5", "4n", now + 0.3);
+            } else if (type === 'wrong') {
+                synth.triggerAttackRelease("D3", "4n", now);
+                synth.triggerAttackRelease("A2", "2n", now + 0.3);
+            } else if (type === 'win') {
+                const notes = ["C4", "E4", "G4", "C5", "E5", "G5", "C6"];
+                notes.forEach((note, i) => {
+                    synth.triggerAttackRelease(note, "8n", now + i * 0.1);
+                });
+            }
+        }
+
+        // --- לוגיקת המשחק ---
+
+        async function startGame() {
+            await initAudio(); // מחייב אינטראקציה
+            
+            document.getElementById('start-screen').classList.add('hide');
+            document.getElementById('game-screen').classList.remove('hide');
+            
+            // איפוס משתנים
+            currentLevel = 0;
+            currentSafeHaven = 0;
+            lifelines = { '5050': true, 'phone': true, 'audience': true };
+            
+            document.getElementById('btn-5050').disabled = false;
+            document.getElementById('btn-phone').disabled = false;
+            document.getElementById('btn-audience').disabled = false;
+            
+            buildLadder();
+            loadQuestion();
+        }
+
+        function buildLadder() {
+            const ladder = document.getElementById('money-ladder');
+            ladder.innerHTML = '';
+            
+            for (let i = 0; i < moneyTree.length; i++) {
+                const div = document.createElement('div');
+                div.className = 'ladder-item flex justify-between';
+                div.id = `ladder-${i}`;
+                
+                const numSpan = document.createElement('span');
+                numSpan.textContent = `${i+1}`;
+                numSpan.className = 'w-6 text-right';
+                
+                const moneySpan = document.createElement('span');
+                moneySpan.textContent = moneyTree[i];
+                
+                if (i === 4 || i === 9 || i === 14) {
+                    div.classList.add('ladder-safe');
+                }
+                
+                div.appendChild(moneySpan);
+                div.appendChild(numSpan);
+                ladder.appendChild(div);
+            }
+        }
+
+        function updateLadderUI() {
+            for (let i = 0; i < moneyTree.length; i++) {
+                const el = document.getElementById(`ladder-${i}`);
+                if(el) {
+                    el.classList.remove('ladder-current', 'ladder-passed');
+                    if (i < currentLevel) el.classList.add('ladder-passed');
+                    if (i === currentLevel) el.classList.add('ladder-current');
+                }
+            }
+            
+            document.getElementById('mobile-q-num').textContent = currentLevel + 1;
+            document.getElementById('mobile-money').textContent = moneyTree[currentLevel] || moneyTree[14];
+        }
+
+        function loadQuestion() {
+            if (currentLevel >= allQuestions.length) {
+                winGame();
+                return;
+            }
+            
+            updateLadderUI();
+            const qData = allQuestions[currentLevel];
+            
+            document.getElementById('question-text').textContent = qData.q;
+            
+            for (let i = 0; i < 4; i++) {
+                const btn = document.getElementById(`ans-${i}`);
+                const textSpan = document.getElementById(`text-${i}`);
+                
+                btn.className = 'ans-btn py-4 px-6 text-right text-lg md:text-xl flex items-center';
+                btn.disabled = false;
+                textSpan.textContent = qData.options[i];
+                textSpan.classList.remove('line-through', 'text-gray-500');
+            }
+            
+            isAcceptingInput = true;
+        }
+
+        function selectAnswer(index) {
+            if (!isAcceptingInput) return;
+            isAcceptingInput = false;
+            
+            playSound('select');
+            
+            const btn = document.getElementById(`ans-${index}`);
+            btn.classList.add('ans-selected');
+            
+            // השהייה למתח
+            setTimeout(() => {
+                checkAnswer(index, btn);
+            }, 2500);
+        }
+
+        function checkAnswer(selectedIndex, selectedBtn) {
+            selectedBtn.classList.remove('ans-selected');
+            const correctIndex = allQuestions[currentLevel].correct;
+            const correctBtn = document.getElementById(`ans-${correctIndex}`);
+            
+            if (selectedIndex === correctIndex) {
+                // תשובה נכונה
+                playSound('correct');
+                correctBtn.classList.add('ans-correct');
+                
+                // שמירת תחנות בטוחות
+                if (currentLevel === 4) currentSafeHaven = 4; // 1,000
+                if (currentLevel === 9) currentSafeHaven = 9; // 32,000
+                
+                setTimeout(() => {
+                    currentLevel++;
+                    loadQuestion();
+                }, 2000);
+            } else {
+                // תשובה שגויה
+                playSound('wrong');
+                selectedBtn.classList.add('ans-wrong');
+                correctBtn.classList.add('ans-correct');
+                
+                setTimeout(() => {
+                    loseGame();
+                }, 3000);
+            }
+        }
+
+        function loseGame() {
+            const winnings = currentSafeHaven >= 0 && currentLevel > 0 ? (currentLevel > currentSafeHaven ? moneyTree[currentSafeHaven] : "₪0") : "₪0";
+            
+            showModal(
+                "המשחק נגמר!", 
+                `תשובה שגויה. זכית ב-${winnings}.<br>תודה שהשתתפת!`,
+                "שחק שוב",
+                () => location.reload()
+            );
+        }
+
+        function winGame() {
+            playSound('win');
+            showModal(
+                "מזל טוב!!!", 
+                `אתה מיליונר! ענית נכונה על כל 15 השאלות בנושא רגרסיה והרווחת ₪1,000,000!`,
+                "שחק שוב",
+                () => location.reload()
+            );
+        }
+
+        // --- גלגלי הצלה ---
+        function useLifeline(type) {
+            if (!isAcceptingInput || !lifelines[type]) return;
+            
+            lifelines[type] = false;
+            document.getElementById(`btn-${type}`).disabled = true;
+            
+            const correctIndex = allQuestions[currentLevel].correct;
+            
+            if (type === '5050') {
+                let hidden = 0;
+                let indices = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+                
+                for (let i of indices) {
+                    if (i !== correctIndex && hidden < 2) {
+                        const btn = document.getElementById(`ans-${i}`);
+                        const textSpan = document.getElementById(`text-${i}`);
+                        btn.disabled = true;
+                        btn.classList.add('opacity-30');
+                        textSpan.textContent = "";
+                        hidden++;
+                    }
+                }
+            } 
+            else if (type === 'phone') {
+                const confidence = Math.random() > 0.2 ? "בטוח ב-100%" : "לא כל כך בטוח, אבל חושב שזה";
+                const ansText = allQuestions[currentLevel].options[correctIndex];
+                
+                // לעיתים נדירות החבר יטעה אם הוא לא בטוח
+                let guess = ansText;
+                if (confidence.includes("לא כל כך") && Math.random() > 0.5) {
+                    let wrongIdx = (correctIndex + 1) % 4;
+                    // ודא שלא בוחר תשובה שנמחקה ב-50:50
+                    while(document.getElementById(`ans-${wrongIdx}`).disabled) {
+                         wrongIdx = (wrongIdx + 1) % 4;
+                    }
+                    guess = allQuestions[currentLevel].options[wrongIdx];
+                }
+                
+                showModal(
+                    "שיחה לחבר מומחה בסטטיסטיקה 📞",
+                    `"אהלן! הקשבתי לשאלה... אני ${confidence} התשובה היא: <b>${guess}</b>."`,
+                    "תודה רבה!"
+                );
+            }
+            else if (type === 'audience') {
+                showAudienceModal(correctIndex);
+            }
+        }
+
+        // --- מערכת מודאלים במקום Alert ---
+        function showModal(title, htmlContent, btnText, callback = null) {
+            document.getElementById('modal-title').innerHTML = title;
+            document.getElementById('modal-content').innerHTML = htmlContent;
+            document.getElementById('modal-btn').textContent = btnText || "סגור";
+            
+            modalCallback = callback;
+            document.getElementById('custom-modal').classList.remove('hide');
+        }
+
+        function closeModal() {
+            document.getElementById('custom-modal').classList.add('hide');
+            if (modalCallback) modalCallback();
+            modalCallback = null;
+        }
+
+        function showAudienceModal(correctIndex) {
+            document.getElementById('audience-modal').classList.remove('hide');
+            
+            // יצירת חלוקת אחוזים הגיונית
+            let percentages = [0, 0, 0, 0];
+            let remaining = 100;
+            
+            // קהל בד"כ צודק ברמות הנמוכות
+            let correctProb = currentLevel < 5 ? 75 : (currentLevel < 10 ? 55 : 35);
+            
+            // הקצאת אחוז לתשובה הנכונה
+            let correctShare = Math.floor(Math.random() * 20) + correctProb;
+            if (correctShare > 90) correctShare = 90;
+            percentages[correctIndex] = correctShare;
+            remaining -= correctShare;
+            
+            // הקצאה לשאר
+            let otherIndices = [0,1,2,3].filter(i => i !== correctIndex && !document.getElementById(`ans-${i}`).disabled);
+            
+            otherIndices.forEach((idx, i) => {
+                if (i === otherIndices.length - 1) {
+                    percentages[idx] = remaining;
+                } else {
+                    let share = Math.floor(Math.random() * (remaining - 5));
+                    percentages[idx] = share;
+                    remaining -= share;
+                }
+            });
+
+            // הפעלת האנימציה
+            setTimeout(() => {
+                for(let i=0; i<4; i++) {
+                    const bar = document.getElementById(`bar-${i}`);
+                    bar.style.height = `${percentages[i]}%`;
+                    bar.innerHTML = `${percentages[i]}%<span class="bar-label">${['א','ב','ג','ד'][i]}</span>`;
+                }
+            }, 100);
+        }
+
+        function closeAudienceModal() {
+            document.getElementById('audience-modal').classList.add('hide');
+            for(let i=0; i<4; i++) {
+                document.getElementById(`bar-${i}`).style.height = `0%`;
+            }
+        }
+    </script>
+</body>
+</html>
